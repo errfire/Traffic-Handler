@@ -47,6 +47,9 @@ def de_traffichandler_main_logger():
 
 de_traffichandler_main_logger()
 
+def generate_alert_key(length=32):
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for _ in range(length))
 def generate_secret_key(length=24):
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for _ in range(length))
@@ -57,7 +60,7 @@ def create_env_file(secret_key, alert_key):
 
 if __name__ == "__main__":
     secret_key = generate_secret_key()
-    alert_key = generate_secret_key()
+    alert_key = generate_alert_key()
     create_env_file(secret_key, alert_key)
     logging.info("Secret Key and Alert Key generated and saved to .env file.")
 
