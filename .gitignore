@@ -6,3 +6,4 @@ bin/
 .dockerignore
 Dockerfile
 requirements.txt
+.gitignore

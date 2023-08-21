@@ -1,0 +1,8 @@
+2023-08-21 22:24:38,886 (Python) [INFO] - [de_traffichandler_main_logger] > Logger started 
+2023-08-21 22:24:38,894 (Python) [INFO] - [<module>] > SSL are enable, start secure Connection 
+2023-08-21 22:24:38,905 (Python) [INFO] - [<module>] > ERR Traffic Handler Version:None 
+2023-08-21 22:24:38,907 (Python) [ERROR] - [<module>] > Either 'SQLALCHEMY_DATABASE_URI' or 'SQLALCHEMY_BINDS' must be set. 
+2023-08-21 22:28:28,470 (Python) [INFO] - [de_traffichandler_main_logger] > Logger started 
+2023-08-21 22:28:28,478 (Python) [INFO] - [<module>] > SSL are enable, start secure Connection 
+2023-08-21 22:28:28,483 (Python) [INFO] - [<module>] > ERR Traffic Handler Version:None 
+2023-08-21 22:28:28,484 (Python) [ERROR] - [<module>] > Either 'SQLALCHEMY_DATABASE_URI' or 'SQLALCHEMY_BINDS' must be set. 
