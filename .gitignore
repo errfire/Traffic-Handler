@@ -1,0 +1,8 @@
+venv/
+traffichandler/
+*.pyc
+certification/
+bin/
+.dockerignore
+Dockerfile
+requirements.txt
