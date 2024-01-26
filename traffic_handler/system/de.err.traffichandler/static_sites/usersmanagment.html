@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>ERR-Fire - Traffic Handler</title>
+
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+
+  </head>
+  <body oncontextmenu="return false">
+  <div id="menu">
+
+     {% include 'menu.html' %}
+  </div>
+
+    <div class="container mt-5">
+        <h1 class="mb-4">Benutzerverwaltung</h1>
+        <form action="/rest/v1/loginbasic/create_user" method="post" class="mb-4">
+            <div class="form-group">
+                <label for="username">Benutzername:</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Passwort:</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="role">Rolle:</label>
+                <select id="role" name="role" class="form-control" required>
+                    <option value="Viewer">Viewer</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Editor">Editor</option>
+                </select>
+            </div>
+            <br>
+            <button type="submit" class="btn btn-primary">Benutzer erstellen</button>
+        </form>
+
+        <h2>Benutzerliste</h2>
+        <ul class="list-group">
+            {% for user in users %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ user.username }} (Rolle: {{ user.role}})
+                <a href="/rest/v1/loginbasic/change_password/{{ user.id }}" class="btn btn-warning btn-sm">Passwort ändern</a>
+                <a href="/rest/v1/loginbasic/change_role/{{ user.id }}" class="btn btn-info btn-sm">Rolle ändern</a>
+                <a href="{{ url_for('delete_user', user_id=user.id) }}" class="btn btn-danger btn-sm">Löschen</a>
+            </li>
+            {% endfor %}
+        </ul>
+        <br>
+        <h2>Benutzer über IAM</h2>
+        <ul class="list-group">
+            {% for user in AuthUser %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ user.username }} (Rolle: {{ user.role}}) (E-Mail Adresse: {{ user.email}})  Der Benutzer wird über ein IAM verwaltet!
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+<footer>
+ <div id="footer">
+     {% include 'footer.html' %}
+  </div>
+</footer>
+</html>
+
