@@ -3,8 +3,8 @@
 ## BETA Version. Bitte aktuell nur zu Testzwecken nutzen. Nicht Produktiv schalten.
 
 ## Informationen
-Es handelt sich hier um das Konfigurationspaket für eine Docker-Installation.
+Es handelt sich hier um den Quellcode des Traffic-Handler.
 
-Bitte lesen Sie sich vor Inbetriebnahem die Dokumentation aufmerksam durch.
+Dokuemnatation zum System:
 
 [Dokumentation](https://doc.err-fire.de/docs)
