@@ -5,6 +5,6 @@
 ## Informationen
 Es handelt sich hier um den Quellcode des Traffic-Handler.
 
-Dokuemnatation zum System:
+Dokumentation zum System:
 
 [Dokumentation](https://doc.err-fire.de/docs)
