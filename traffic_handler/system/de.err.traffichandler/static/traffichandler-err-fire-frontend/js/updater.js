@@ -21,7 +21,7 @@ fetch('https://updater.err-fire.de/updater/manifest.json', {cache: "reload"})
     .then(response => response.json())
     .then(data => {
         const serverVersion = data.Version;
-        const currentVersion = "0.6.0";
+        const currentVersion = "0.8.0";
 
         if (compareVersions(currentVersion, serverVersion)) {
 
