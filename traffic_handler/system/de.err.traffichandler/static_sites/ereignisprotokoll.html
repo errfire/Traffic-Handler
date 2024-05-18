@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>ERR-Fire Traffic Handler</title>
+
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.bundle.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.8/axios.min.js"></script>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/styles.css') }}" />
+    <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/ereignisse.js') }}"></script>
+</head>
+<body oncontextmenu="return false">
+  <div id="menu">
+
+     {% include 'menu.html' %}
+  </div>
+
+<div class="container mt-4">
+    <h1>Ereignisprotokoll</h1>
+    <table id="logTable" class="table table-striped table-bordered mytabel" style="width:100%">
+        <thead>
+            <tr>
+                <th>Zeitstempel</th>
+                <th>Log-Level</th>
+                <th>Meldung</th>
+            </tr>
+        </thead>
+        <tbody>
+           {% for entry in log_data %}
+        <tr>
+            <td>{{ entry.timestamp }}</td>
+            <td>{{ entry.log_level }}</td>
+            <td>{{ entry.message }}</td>
+        </tr>
+        {% endfor %}
+
+        </tbody>
+    </table>
+</div>
+
+<footer class="mt-5">
+ <div id="footer">
+     {% include 'footer.html' %}
+  </div>
+</footer>
+
+</body>
+</html>

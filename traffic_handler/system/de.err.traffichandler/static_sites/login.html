@@ -1,20 +1,25 @@
 <!DOCTYPE html>
-<html lang="de">
+<html data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ERR-Fire Login</title>
+  <title>Traffic Handler Login</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"/>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style_bg.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/style_bg.css') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.1.0/css/bootstrap.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+
 </head>
-<body>
+<body oncontextmenu="return false">
   <div class="container">
     <div class="row">
-      <div class="col-md-12">
+      <div class="col-md-4 offset-md-4">
+        <div id="loading-overlay" class="loading-overlay">
+          <div class="loader"></div>
+        </div>
+
         <form class="login-form" action="" method="POST">
-          <h1 class="text-center mb-4">ERR-FIRE <p>{{ City }}</p></h1>
+          <h1 class="text-center mb-4 login-title">Traffic Handler <p>{{ City }}</p></h1>
           <div class="mb-3">
             <label for="username" class="form-label">Benutzername</label>
             <input type="text" name="username" class="form-control" id="user-id" required>
@@ -30,11 +35,12 @@
     </div>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.0/js/bootstrap.bundle.min.js"></script>
+
 </body>
 <footer>
-  <!--<div id="health-check" class="health-check">Health Check: <span id="health-status">loading...</span></div>-->
+
   <div id="footer" class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.2); position: fixed; bottom: 0; width: 100%; color: white;">
-      ERR-Fire - Traffic Handler  {Build Version: {{ Version }}} - Stadt: {{ City }}
+      ERR-Fire - Traffic Handler Build Version: {{ Version }} - Stadt: {{ City }}
   </div>
 </footer>
 </html>

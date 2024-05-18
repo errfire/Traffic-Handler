@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>ERR-Fire - Traffic Handler</title>
+
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"/>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.bundle.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.8/axios.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/styles.css') }}" />
+
+  </head>
+  <body oncontextmenu="return false">
+
+  <div id="menu">
+
+     {% include 'menu.html' %}
+  </div>
+
+    <div class="container mt-5">
+        <h1 class="mb-4">E-Mail ändern für {{ user.username }}</h1>
+        <form action="/rest/v1/loginbasic/change_email/{{ user.id }}" method="post" class="mb-4">
+            <div class="form-group">
+                <label for="new_email">Neue E-Mail Adresse:</label>
+                <input type="text" id="new_email" name="new_email" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary">E-Mail ändern</button>
+        </form>
+    </div>
+
+</body>
+<footer>
+ <div id="footer">
+     {% include 'footer.html' %}
+  </div>
+</footer>
+</html>
+

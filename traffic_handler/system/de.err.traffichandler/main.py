@@ -2,574 +2,855 @@
 #ERR-FIRE
 #Billel Meftah
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from flask_caching import Cache
-from flask_cors import CORS
-from flask_bcrypt import Bcrypt
-from flask_sqlalchemy import SQLAlchemy
-from dotenv import load_dotenv
-from enum import Enum
-
-
-import io
 import sys
 import platform
+import re
 import psutil
-import random
-import string
-import logging
+
 import json
+import base64
+import csv
 import os
-import dotenv
-import libconf
+import smtplib
 
-
-def de_traffichandler_main_logger():
-
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(current_dir)
-
-    log_dir = os.path.join("..", "..", "logs")
-    data_dir = os.path.join("..", "..", "data")
-
-    os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(data_dir, exist_ok=True)
-
-    log_file_path = os.path.join(log_dir, "err_main.log")
-
-    logging.basicConfig(
-        format='%(asctime)s (Python) [%(levelname)s] - [%(funcName)s] > %(message)s ',
-        filename=log_file_path,
-        level=logging.INFO
-    )
-
-    logging.info('Logger started')
-
-de_traffichandler_main_logger()
-
-def generate_alert_key(length=32):
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
-def generate_secret_key(length=24):
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for _ in range(length))
-
-def create_env_file(secret_key, alert_key):
-    with open('.env', 'w') as env_file:
-        env_file.write(f"SECRET_KEY={secret_key}\nALERTKEY={alert_key}")
-
-if __name__ == "__main__":
-    secret_key = generate_secret_key()
-    alert_key = generate_alert_key()
-    create_env_file(secret_key, alert_key)
-    logging.info("Secret Key and Alert Key generated and saved to .env file.")
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from cryptography.fernet import Fernet
+from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_file, send_from_directory
+from utils import create_user, get_user_and_constructions
+from app import app, db, bcrypt, oauth_enabled, oauth_disabled, cache, ALLOWED_EXTENSIONS, UPLOAD_FOLDER, NoAuth
+from models import Drawing, User, UserRole, OAuthUser, Construction, SmtpConfig, Secure
+from models import Imagelogo
+from email.mime.base import MIMEBase
+from email import encoders
+from pdf_generator import generate_pdf
+from health import health_bp
+from usermanagment import user_bp
+from alertservice import alert_bp
+from config_loader import port, host,City, ssl_settings
 
 conf_dir = os.path.join("..", "..", "conf")
+key = Fernet.generate_key()
+cipher_suite = Fernet(key)
 
-
+conf_dir = os.path.join("..", "..", "conf")
 conf_file_path = os.path.join(conf_dir, "settings.cfg")
-with io.open(conf_file_path, encoding='utf-8') as f:
-    try:
-                load_dotenv()
-                cfg = libconf.load(f)
-                limiter = cfg.get('limiter')
-                usessl = cfg.get('useSSL')
-                Token = cfg.get('token')
-                port = cfg.get('port')
-                host = cfg.get('host')
-                cert = cfg.get('cert')
-                key = cfg.get('key')
-                status = cfg.get('status')
-                URL = cfg.get('url')
-                City = cfg.get('city')
-                ALERTKEY = os.getenv("ALERTKEY")
 
-                if usessl == "True":
-                    logging.info("SSL are enable, start secure Connection")
-                    ssl_settings = (cert, key)
-                elif usessl == "False":
-                    logging.info("No SSL connection. Start unsecure.")
-                    ssl_settings = None
+
+with app.app_context():
+    db.create_all()
+    create_user('poweruser', 'powerAdmin', UserRole.ADMIN.value)
+
+
+
+
+    ###########################
+    ######## Endpoints ########
+    ###########################
+
+    if oauth_enabled:
+        from iam import iam_bp
+        app.register_blueprint(iam_bp)
+    else:
+        None
+
+    app.register_blueprint(health_bp)
+    app.register_blueprint(user_bp)
+    app.register_blueprint(alert_bp)
+
+    @app.route('/generate_pdf/<int:construction_id>')
+    def generate_pdf_route(construction_id):
+        return generate_pdf(construction_id, Construction, app)
+
+
+    def allowed_file(filename):
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+    @app.route('/rest/v1/emailfile', methods=['POST'])
+    def upload_csv_email_file():
+        try:
+
+            if oauth_enabled:
+                username, user_role, active_constructions = get_user_and_constructions()
+
+                if username is None or user_role != UserRole.ADMIN:
+                    error_message = NoAuth
+                    return render_template('error.html', error_message=error_message, Version=app.Version,
+                                           City=City)
+
+            elif oauth_disabled:
+                if 'username' not in session:
+                    return redirect(url_for('login'))
+                username = session.get('username')
+                user = User.query.filter_by(username=username).first()
+                if not user or user.role != UserRole.ADMIN:
+                    error_message = NoAuth
+                    return render_template('error.html', error_message=error_message, Version=app.Version,
+                                           City=City)
+
+            if 'file' not in request.files:
+                flash('Keine Datei ausgewählt!', 'error')
+                return redirect(request.url)
+
+            file = request.files['file']
+
+            if file.filename != 'err_mailreceiver.csv':
+                app.logger.error("Try to uploade file with wrong name!")
+                error_message = "Der Dateiname entspricht nicht der Richtlinie!"
+                return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+            if file.filename == '':
+                app.logger.error("No file has been selected for upload")
+                error_message = "Es wurde keine Datei ausgewählt zum hochladen!"
+                return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+            if file.filename == 'err_mailreceiver.csv':
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(UPLOAD_FOLDER, filename))
+                app.logger.info("New CSV uploade for Mailing")
+                flash('Die Datei wurden erfolgreich gespeichert!', 'success')
+                return render_template('emailupload.html', Version=app.Version, City=City)
+
+        except Exception as e:
+            app.logger.error(str(e))
+            return render_template('error.html', error_message=str(e), Version=app.Version, City=City)
+
+        return render_template('error.html', error_message="Ein unbekannter Fehler ist aufgetreten.",
+                               Version=app.Version, City=City)
+
+    def get_uploaded_files():
+        files = []
+        for filename in os.listdir(UPLOAD_FOLDER):
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            timestamp = os.path.getmtime(file_path)
+            timestamp = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            files.append({'name': filename, 'timestamp': timestamp})
+        return files
+
+    @app.route('/emailupload')
+    def receiver():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None or user_role != UserRole.ADMIN:
+                error_message = NoAuth
+                return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            username = session.get('username')
+            user = User.query.filter_by(username=username).first()
+            if not user or user.role != UserRole.ADMIN:
+                error_message = NoAuth
+                return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+        files = get_uploaded_files()
+
+        return render_template('emailupload.html', Version=app.Version, City=City, files=files)
+
+
+    @app.route('/rest/v1/delete_drawing/<int:drawing_id>', methods=['DELETE'])
+    def delete_drawing(drawing_id):
+        try:
+            if oauth_enabled:
+                username, user_role, active_constructions = get_user_and_constructions()
+
+                if username is None:
+                    return redirect(url_for('login'))
+                if user_role == UserRole.EDITOR:
+                    drawing = Drawing.query.get(drawing_id)
+                    if drawing:
+                        db.session.delete(drawing)
+                        db.session.commit()
+                        return jsonify({'message': 'Zeichnung erfolgreich gelöscht'}), 200
+                    else:
+                        return jsonify({'error': 'Zeichnung nicht gefunden'}), 404
+        except Exception as e:
+            app.logger.error(e)
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route('/rest/v1/save_drawing', methods=['POST'])
+    def save_drawing():
+        try:
+            if oauth_enabled:
+                username, user_role, active_constructions = get_user_and_constructions()
+                if not username:
+                    return redirect(url_for('login'))
+                if user_role not in [UserRole.ADMIN, UserRole.EDITOR]:
+                    return jsonify({'error': 'Unauthorized access'}), 401
+            elif oauth_disabled:
+                if 'username' not in session:
+                    return redirect(url_for('login'))
+                username = session.get('username')
+                user = User.query.filter_by(username=username).first()
+                if not user:
+                    return jsonify({'error': 'User not found'}), 404
+                user_role = user.role
+                if user_role not in [UserRole.ADMIN, UserRole.EDITOR]:
+                    return jsonify({'error': 'Unauthorized access'}), 401
+            app.logger.info("Receive new map-drawing")
+            drawing_data = request.get_json()
+            new_drawing = Drawing(geometry=json.dumps(drawing_data['geometry']))
+            app.logger.info("Statr writing in Database.")
+            db.session.add(new_drawing)
+            db.session.commit()
+
+            return jsonify({'message': 'Zeichnung erfolgreich gespeichert'}), 201
+        except Exception as e:
+            app.logger.error(e)
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route('/rest/v1/get_drawings', methods=['GET'])
+    def get_drawings():
+        try:
+            if oauth_enabled:
+                username, user_role, active_constructions = get_user_and_constructions()
+
+                if username is None:
+                    return redirect(url_for('login'))
+
+            elif oauth_disabled:
+                if 'username' not in session:
+                    return redirect(url_for('login'))
+            drawings = Drawing.query.all()
+            drawings_data = [{'geometry': json.loads(d.geometry)} for d in drawings]
+            return jsonify(drawings_data)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route('/dbconfig')
+    def dbconfig():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+            error_message = "Fehler - Die Konfiguration von anderen Datenbanken folgt in einer späteren Version."
+            return render_template('error.html', error_message=error_message, Version=app.Version,
+                                   City=City)
+
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            error_message = "Fehler - Die Konfiguration von anderen Datenbanken folgt in einer späteren Version."
+            return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+
+    @app.route('/settings')
+    def settings():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None or user_role != UserRole.ADMIN:
+                error_message = NoAuth
+                return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+
+            username = session.get('username')
+            user = User.query.filter_by(username=username).first()
+            if not user or user.role != UserRole.ADMIN:
+                error_message = NoAuth
+                return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+        all_users = User.query.all()
+        filtered_users = [user for user in all_users if user.username != 'poweruser']
+
+        smtp_config = SmtpConfig.query.first()
+        if smtp_config is not None:
+            smtp_server = smtp_config.smtp_server
+            smtp_port = smtp_config.smtp_port
+            smtp_username = smtp_config.smtp_username
+            smtp_secure = smtp_config.smtp_secure
+        else:
+            # Fallback values
+            smtp_server = "default_smtp_server"
+            smtp_port = 587
+            smtp_username = "default_username"
+            smtp_secure = Secure.FALSE
+
+        image = Imagelogo.query.first()
+        image_data = image.image_data if image else None
+        image_base64 = base64.b64encode(image_data).decode('utf-8') if image_data else None
+
+        return render_template('settings.html', Version=app.Version, City=City, smtp_server=smtp_server,smtp_port=smtp_port,smtp_username=smtp_username,smtp_secure=smtp_secure, image=image_base64)
+
+    UPLOAD_ALLOWED_EXTENSIONS = {'png'}
+
+    def uploadallowed(filename):
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in UPLOAD_ALLOWED_EXTENSIONS
+
+    @app.route('/upload_image', methods=['POST'])
+    def upload_image():
+        if 'image' in request.files:
+            image = request.files['image']
+            if image.filename != '' and uploadallowed(image.filename):
+                filename = secure_filename(image.filename)
+                image_data = image.read()
+                existing_image = Imagelogo.query.first()
+                if existing_image:
+                    existing_image.image_data = image_data
                 else:
-                    logging.error("No valid value in usessl. Application is terminated.")
-                    sys.exit(0)
-
-                app = Flask(__name__, template_folder="static_sites")
-                cache = Cache(app)
-                cors = CORS(app)
-                cors = CORS(app, resources={r"/*": {"origins": "*"}})
-
-
-                app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-                app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-                bcrypt = Bcrypt(app)
-                app.config['DEBUG'] = False
-                app.config['TESTING'] = False
-                app.config['FLASK_ENV '] = "production"
-                app.secret_key = os.getenv('SECRET_KEY')
-                app.Version = os.getenv('Version')
-                logging.info(f"ERR Traffic Handler Version:{app.Version}")
-
-                # Erstellen Sie die SQLAlchemy-Datenbankinstanz
-                db = SQLAlchemy(app)
+                    new_image = Imagelogo(image_data=image_data)
+                    db.session.add(new_image)
+                db.session.commit()
+                app.logger.info('New logo successfully uploaded!')
+                return redirect(url_for('settings'))
+        upload_error = 'Kein Logo ausgewählt oder Fehler beim Hochladen.'
+        app.logger.error(upload_error)
+        return render_template('error.html', error_message=upload_error, Version=app.Version, City=City)
 
 
+    @app.route('/ereignisprotokoll')
+    def events():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
 
-                # Definieren Sie das Baustellenmodell
-                class Construction(db.Model):
-                    id = db.Column(db.Integer, primary_key=True)
-                    title = db.Column(db.String(100), nullable=False)
-                    description = db.Column(db.Text, nullable=True)
-                    address = db.Column(db.String(200), nullable=False)
-                    start_date = db.Column(db.String(10), nullable=False)
-                    end_date = db.Column(db.String(10), nullable=False)
-                    latitude = db.Column(db.Float, nullable=True)
-                    longitude = db.Column(db.Float, nullable=True)
+            if not username or user_role != UserRole.ADMIN:
+                return render_template('error.html', error_message=NoAuth, Version=app.Version, City=City)
 
 
-                class UserRole(Enum):
-                    ADMIN = "Admin"
-                    EDITOR = "Editor"
-                    VIEWER = "Viewer"
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            username = session.get('username')
+            user = User.query.filter_by(username=username).first()
+            if not user or user.role != UserRole.ADMIN:
+                error_message = NoAuth
+                return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+        log_data = []
+        logfile_path = '../../logs/err_main.log'
+        log_pattern = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) \[(\w+)\] > (.+)'
+
+        with open(logfile_path, 'r') as logfile:
+            for line in logfile:
+                match = re.match(log_pattern, line)
+                if match:
+                    timestamp, log_level, message = match.groups()
+                    log_data.append({
+                        'timestamp': timestamp,
+                        'log_level': log_level,
+                        'message': message
+                    })
+
+        return render_template('ereignisprotokoll.html', log_data=log_data, Version=app.Version, City=City)
 
 
-                class User(db.Model):
-                    id = db.Column(db.Integer, primary_key=True)
-                    username = db.Column(db.String(80), unique=True, nullable=False)
-                    hashed_password = db.Column(db.String(128), nullable=False)
-                    role = db.Column(db.Enum(UserRole), nullable=False,
-                                     default=UserRole.VIEWER)  # Standardrolle ist Viewer
+    @app.route('/save_smtp_settings', methods=['POST', 'GET'])
+    def save_smtp_settings():
+        try:
+            username, user_role = get_user_and_role()
+
+            if username and user_role == UserRole.ADMIN:
+                smtp_server = request.form.get('smtp-server')
+                smtp_port = request.form.get('smtp-port')
+                smtp_username = request.form.get('smtp-username')
+                smtp_password = request.form.get('smtp-password')
+                encrypted_password = cipher_suite.encrypt(smtp_password.encode())
+                encoded_password = base64.b64encode(encrypted_password).decode()
+                SmtpConfig.query.delete()
+
+                new_config = SmtpConfig(smtp_server=smtp_server, smtp_port=smtp_port, smtp_username=smtp_username,
+                                        smtp_password=encoded_password, smtp_secure=Secure.TRUE)
+                db.session.add(new_config)
+                db.session.commit()
+                flash('SMTP-Einstellungen wurden erfolgreich gespeichert!', 'success')
+                return render_template('settings.html')
+            else:
+                return redirect(url_for('login'))
+        except:
+            return redirect(url_for('login'))
+
+    def get_user_and_role():
+        if oauth_enabled:
+            username, user_role, _ = get_user_and_constructions()
+        elif oauth_disabled and 'username' in session:
+            username = session.get('username')
+            user = User.query.filter_by(username=username).first()
+            user_role = user.role if user else None
+        else:
+            username = user_role = None
+        return username, user_role
+
+    @app.route('/user-config')
+    def users():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+
+            if user_role == UserRole.ADMIN:
+                all_users = User.query.all()
+                users = User.query.all()
+
+                filtered_users = [user for user in all_users if user.username != 'poweruser']
+
+                user_list = []
+                for user in filtered_users:
+                    user_info = {'username': user.username}
+                    user_list.append(user_info)
+
+                AuthUser = OAuthUser.query.all()
+
+                return render_template('usersmanagment.html', users=users, AuthUser=AuthUser, Version=app.Version, City=City)
+            else:
+                error_message = NoAuth
+                app.logger.error(f"The User {username} has no authorization.")
+                return render_template('error.html', error_message=error_message, Version=app.Version,
+                                       City=City)
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+
+            users = User.query.all()
+            username = session.get('username')
+            if username:
+                user = User.query.filter_by(username=username).first()
+                user_role = user.role
+
+            if user_role == UserRole.ADMIN:
+                all_users = User.query.all()
+                filtered_users = [user for user in all_users if user.username != 'poweruser']
+
+                user_list = []
+                for user in filtered_users:
+                    user_info = {'username': user.username}
+                    user_list.append(user_info)
+
+                AuthUser = OAuthUser.query.all()
+                return render_template('usersmanagment.html', AuthUser=AuthUser,users=users, Version=app.Version, City=City)
+
+            error_message = NoAuth
+            app.logger.error(f"The User {username} has no authorization.")
+            return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+
+    @app.route('/')
+    @cache.cached(timeout=60)
+    def index():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+
+            return render_template('index.html', constructions=active_constructions,
+                                   Version=app.Version, username=username, City=City,
+                                   user_role=user_role)
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for(f'login'))
+
+            active_constructions = Construction.query.all()
+            username = session.get('username')
+            if username:
+                user = User.query.filter_by(username=username).first()
+                user_role = user.role
+
+            return render_template('index.html', constructions=active_constructions, Version=app.Version, username=username, City=City, user_role=user_role)
 
 
-                def create_user(username, hashed_password, role):
-                    # Erstellen Sie den Anwendungskontext
-                    with app.app_context():
-                        # Überprüfen, ob der Benutzer bereits existiert
-                        existing_user = User.query.filter_by(username=username).first()
-                        if existing_user:
-                            logging.info(f"User '{username}' already exists.")
-                        else:
-                            # Hashen Sie das Passwort bevor Sie es in der Datenbank speichern
-                            hashed_password = bcrypt.generate_password_hash(hashed_password).decode('utf-8')
+    @app.route('/rest/v1/get_constructions', methods=['GET'])
+    def get_constructions():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
 
-                            # Erstellen Sie den neuen Benutzer mit der angegebenen Rolle
-                            new_user = User(username=username, hashed_password=hashed_password, role=UserRole(role))
-                            db.session.add(new_user)
-                            db.session.commit()
-                            logging.info(f"User '{username}' was created successfully with role '{role}'.")
+            if username is None:
+                return redirect(url_for('login'))
+
+            constructions = Construction.query.all()
+            construction_list = []
+            for construction in constructions:
+                construction_info = {
+                    'title': construction.title,
+                    'strasse': construction.strasse,
+                    'plz': construction.plz,
+                    'ort': construction.ort,
+                    'latitude': construction.latitude,
+                    'longitude': construction.longitude,
+                    'type': construction.type,
+                    'length': construction.length,
+                    'width': construction.width,
+                    'height': construction.height,
+                    'weight': construction.weight
+                }
+                construction_list.append(construction_info)
+            return jsonify(construction_list)
+
+        elif oauth_disabled:
+
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            constructions = Construction.query.all()
+            construction_list = []
+            for construction in constructions:
+                construction_info = {
+                    'title': construction.title,
+                    'strasse': construction.strasse,
+                    'plz': construction.plz,
+                    'ort': construction.ort,
+                    'latitude': construction.latitude,
+                    'longitude': construction.longitude,
+                    'type': construction.type,
+                    'length': construction.length,
+                    'width': construction.width,
+                    'height': construction.height,
+                    'weight': construction.weight
+                }
+                construction_list.append(construction_info)
+            return jsonify(construction_list)
+
+    @app.route('/new_traffic_entry')
+    @cache.cached(timeout=60)
+    def new_traffic_entry():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+            return render_template('new_traffic_entry.html', Version=app.Version, City=City)
+
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            return render_template('new_traffic_entry.html', Version=app.Version, City=City)
+
+    @app.route('/rest/v1/debug-sate')
+    @cache.cached(timeout=60)
+    def debug_sate():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+            return jsonify(debug=app.debug)
+
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            return jsonify(debug=app.debug)
+
+    @app.route('/entry_revoke')
+    @cache.cached(timeout=60)
+    def entry_revoke():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+            active_constructions = Construction.query.all()
+            return render_template('entry_revoke.html', constructions=active_constructions,
+                                   Version=app.Version)
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            active_constructions = Construction.query.all()
+            return render_template('entry_revoke.html', constructions=active_constructions, Version=app.Version)
+
+    @app.route('/rest/v1/external/maps', methods=['GET'])
+    def interface_external():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+            constructions = Construction.query.all()
+
+            construction_list = []
+            for construction in constructions:
+                construction_info = {
+                    'title': construction.title,
+                    'address': construction.address,
+                    'latitude': construction.latitude,
+                    'longitude': construction.longitude,
+                    'type': construction.type
+                }
+                construction_list.append(construction_info)
+
+            return jsonify(construction_list)
+
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+
+            constructions = Construction.query.all()
+
+            construction_list = []
+            for construction in constructions:
+                construction_info = {
+                    'title': construction.title,
+                    'address': construction.address,
+                    'latitude': construction.latitude,
+                    'longitude': construction.longitude,
+                    'type': construction.type
+                }
+                construction_list.append(construction_info)
+
+            return jsonify(construction_list)
+    @app.route('/profile', methods=['GET', 'POST'])
+    def profile():
+        if oauth_enabled:
+
+            return render_template('error.html', error_message="Benutzername und Passwort nur über das IAM veränderbar. Bitte kontaktieren Sie Ihren Administrator.", Version=app.Version,
+                                   City=City)
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for(f'login'))
+
+        username = session.get('username')
+        if username:
+            user = User.query.filter_by(username=username).first()
+            user_role = user.role
+
+        user = User.query.filter_by(username=session['username']).first()
+        if not user:
+            return render_template('error.html', error_message="Benutzer nicht gefunden!", Version=app.Version,
+                                   City=City)
+
+        if request.method == 'POST':
+            new_password = request.form['password']
+
+            if new_password:
+                user.hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
+            db.session.commit()
+            flash('Profil erfolgreich aktualisiert.', 'success')
+            return redirect(url_for('profile'))
+
+        return render_template('profile.html', Version=app.Version, user=user, username=username, City=City, user_role=user_role)
 
 
-                with app.app_context():
-                    db.create_all()
-                    create_user('poweruser', 'powerAdmin',UserRole.ADMIN.value)  # Der poweruser erhält die Rolle "Admin"
+    @app.route('/rest/v1/delete_construction/<int:construction_id>', methods=['GET', 'POST'])
+    def delete_construction(construction_id):
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None:
+                return redirect(url_for('login'))
+            if user_role == UserRole.ADMIN or user_role == UserRole.EDITOR:
+                construction = Construction.query.get_or_404(construction_id)
+                db.session.delete(construction)
+                db.session.commit()
+                app.logger.info(f"The following entry was deleted {construction_id}")
+                return redirect(url_for('entry_revoke'))
+            error_message = NoAuth
+            app.logger.error(f"The User {username} has no authorization.")
+            return render_template('error.html', error_message=error_message)
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            username = session.get('username')
+            if username:
+                user = User.query.filter_by(username=username).first()
+                user_role = user.role
+
+            if user_role == UserRole.ADMIN or user_role == UserRole.EDITOR:
+                construction = Construction.query.get_or_404(construction_id)
+                db.session.delete(construction)
+                db.session.commit()
+                app.logger.info(f"The following entry was deleted {construction_id}")
+                return redirect(url_for('entry_revoke'))
+            error_message = NoAuth
+            app.logger.error(f"The User {username} has no authorization.")
+            return render_template('error.html', error_message=error_message)
 
 
-                @app.errorhandler(Exception)
-                def log_exceptions(error):
-                    app.logger.error('Error: %s', error)
-                    logging.error(error)
-                    return "Internal Server Error", 500
+    @app.route('/rest/v1/add_construction', methods=['POST'])
+    def add_construction():
+        try:
+            if oauth_enabled:
+                username, user_role, active_constructions = get_user_and_constructions()
+
+                if not username or user_role != UserRole.ADMIN:
+                    return render_template('error.html', error_message=NoAuth, Version=app.Version, City=City)
 
 
-                @app.route('/create_user', methods=['POST'])
-                def create_user():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    if request.method == 'POST':
-                        username = request.form['username']
-                        password = request.form['password']
-                        role = request.form.get('role')  # Hole die ausgewählte Rolle aus dem Formular
-
-                        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-
-                        # Erstelle einen neuen Benutzer mit der ausgewählten Rolle
-                        new_user = User(username=username, hashed_password=hashed_password, role=UserRole(role))
-                        db.session.add(new_user)
-                        db.session.commit()
-                        logging.info(f"A new user has been created - {username}")
-
-                    return render_template('success.html', Message=f"Der User {username} wurde erfolgreich angelegt", Version=app.Version, City=City)
-
-
-                @app.route('/delete_user/<int:user_id>', methods=['GET'])
-                def delete_user(user_id):
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    user_to_delete = User.query.get_or_404(user_id)
-
-                    if user_to_delete.username == 'poweruser':
-                        error_message = f"Fehler - Der User {user_to_delete.username} darf nicht gelöscht werden."
-                        logging.error(error_message)
-                        return render_template('error.html', error_message=error_message, Version=app.Version,
-                                               City=City)
-
-                    db.session.delete(user_to_delete)
-                    db.session.commit()
-                    logging.info(f"The following user was deleted - {user_to_delete.username}")
-
-                    return render_template('success.html', Message=f"Der User {user_to_delete.username} wurde erfolgreich gelöscht", Version=app.Version, City=City)
-
-
-                @app.route('/change_password/<int:user_id>', methods=['GET', 'POST'])
-                def change_password(user_id):
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    user_to_change = User.query.get_or_404(user_id)
-
-                    if request.method == 'POST':
-                        new_password = request.form['new_password']
-                        hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
-                        user_to_change.hashed_password = hashed_password
-                        db.session.commit()
-                        return render_template('success.html', Message="Das Passwort wurde erfolgreich geändert", Version=app.Version, City=City)
-
-                    return render_template('change_password.html', user=user_to_change)
-
-
-                @app.route('/change_role/<int:user_id>', methods=['GET', 'POST'])
-                def change_role(user_id):
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    user_to_change = User.query.get_or_404(user_id)
-
-                    if request.method == 'POST':
-                        new_role = request.form['new_role']
-                        if new_role in ['VIEWER', 'EDITOR', 'ADMIN']:
-                            user_to_change.role = new_role
-                            db.session.commit()
-                            return render_template('success.html', Message="Die Rolle wurde erfolgreich geändert",
-                                                   Version=app.Version, City=City)
-
-                    return render_template('change_role.html', user=user_to_change)
-
-
-                @app.route('/dbconfig')
-                def dbconfig():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    error_message = "Fehler - Die Konfiguration von anderen Datenbanken folgt in einer späteren Version."
+            elif oauth_disabled:
+                if 'username' not in session:
+                    return redirect(url_for('login'))
+                username = session.get('username')
+                user = User.query.filter_by(username=username).first()
+                if not user or user.role != UserRole.ADMIN:
+                    error_message = NoAuth
                     return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
 
-                @app.route(f'/login', methods=['GET', 'POST'])
-                def login():
-                    try:
-                        if request.method == 'POST':
-                            # Get the username and password entered in the HTML form
-                            username = request.form.get('username')
-                            password = request.form.get('password')
+            app.logger.info("Start process add new construction entry!")
+            title = request.form['title']
+            description = request.form['description']
+            strasse = request.form['strasse']
+            plz = request.form['plz']
+            ort = request.form['ort']
+            start_date = request.form['start_date']
+            end_date = request.form['end_date']
+            latitude = request.form['latitude']
+            longitude = request.form['longitude']
+            type = request.form['type']
+            length = request.form['length']
+            width = request.form['width']
+            height = request.form['height']
+            weight = request.form['weight']
+            send_email = request.form.get('send_email')
+            app.logger.info("Check if Attachment is attach...")
+            if 'attachment' in request.files:
+                attachment = request.files['attachment']
+                if attachment:
+                    app.logger.info("User uploaded Attachment. Start handling.")
+                    attachment_filename = secure_filename(attachment.filename)
+                    dir_path = "../../includes/construction"
+                    if not os.path.exists(dir_path):
+                        try:
+                            os.makedirs(dir_path)
+                            app.logger.info(f"The path {dir_path} was created successful.")
+                        except PermissionError:
+                            app.logger.error( f"No Permission to create the following Path {dir_path}. Pleas check the Permission.")
+                    else:
+                        app.logger.debug(f"The path {dir_path} already exists.")
+                    attachment.save(os.path.join(dir_path, attachment_filename))
+                    app.logger.info("Attachment saved.")
+                    part = MIMEBase('application', "octet-stream")
+                    with open(os.path.join(dir_path, attachment_filename), 'rb') as file:
+                        part.set_payload(file.read())
+                    encoders.encode_base64(part)
+                    part.add_header('Content-Disposition', 'attachment', filename=attachment_filename)
 
+                    message = MIMEMultipart()
 
-                            # Check if the user exists in the database
-                            user = User.query.filter_by(username=username).first()
-                            logging.info(user)
+            else:
+                app.logger.info("No  Attachment is attach!")
+            new_construction = Construction(title=title, description=description, strasse=strasse, plz=plz, ort=ort,
+                                            start_date=start_date, end_date=end_date, latitude=latitude,
+                                            longitude=longitude, type=type, length=length, width=width, height=height,
+                                            weight=weight)
+            db.session.add(new_construction)
+            db.session.commit()
 
-                            if user and bcrypt.check_password_hash(user.hashed_password, password):
-                                # Set the authenticated user's ID in the session
-                                session['username'] = username
-                                return redirect(url_for('index'))
+            app.logger.info(f"New traffic situation entered {new_construction}")
 
-                            # If the username and password were not valid, show an error message
-                            error_message = "Die eingegebenen Daten stimmen nicht überein."
-                            return render_template('login.html', error_message=error_message)
+            if send_email:
+                smtp_config = SmtpConfig.query.first()
+                app.logger.info("Start sending EMail with new traffic situation")
+                smtp_server = smtp_config.smtp_server
+                smtp_port = int(smtp_config.smtp_port)
+                smtp_username = smtp_config.smtp_username
+                smtp_password = cipher_suite.decrypt(base64.b64decode(smtp_config.smtp_password.encode())).decode()
+                smtp_secure = smtp_config.smtp_secure == Secure.TRUE
 
-                        return render_template('login.html', Version=app.Version, City=City)
-                    except Exception as errorhandler:
-                        logging.error(errorhandler)
+                app.logger.info("Start pars E-Mail Address from CSV File")
+                csv_file_path = os.path.join(UPLOAD_FOLDER, 'err_mailreceiver.csv')
+                recipients = []
+                with open(csv_file_path, newline='') as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        recipients.append(row['email'])
+                app.logger.info("Start Build the E-Mail.")
+                message = MIMEMultipart()
+                message['From'] = smtp_username
+                message['To'] = ", ".join(recipients)
+                message['Subject'] = f"TrafficHandler: Neue Verkehrshindernis hinzugefügt! {title} {new_construction}"
+                body = (f"Hallo,\n\n Es wurde von {username} folgender Eintrag, mit der Bitte um Beachtung angelegt.\n\nTitel: {title}\nBeschreibung: {description}\nStraße: {strasse}\nPLZ: {plz}\nOrt: {ort}\nStartdatum: {start_date}\nEnddatum: {end_date}\nBreitengrad: {latitude}\nLängengrad: {longitude}\nTyp: {type}\n\n\nBitte beachten Sie folgende Hinweise für Fahrzeuge.\n\nLänge: {length}\nBreite: {width}\nHöhe: {height}\nGewicht: {weight}\n\n"
+                        f"Freundliche Grüße\n {username}")
+                message.attach(MIMEText(body, 'plain'))
+                message.attach(part)
 
+                with smtplib.SMTP(smtp_server, smtp_port) as server:
+                    if smtp_secure:
+                        server.starttls()
+                        app.logger.debug("Sending EMail with TLS - Secure.")
+                    server.login(smtp_username, smtp_password)
+                    server.sendmail(smtp_username, recipients, message.as_string())
+                    app.logger.info(f"Sending EMail to: {recipients}")
 
-                @app.route('/user-config')
-                def users():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    users = User.query.all()
-                    # Get the username from the session
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
+            active_constructions = Construction.query.all()
+            return redirect(url_for('index'))
 
-                    if user_role == UserRole.ADMIN:
-                        # Get all users from the database
-                        all_users = User.query.all()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(e)
+            return "Failed to add construction", 500
 
-                        # Filter out the "FleAdmin" user (optional, falls erforderlich)
-                        filtered_users = [user for user in all_users if user.username != 'poweruser']
+    @app.route('/endpoints', methods=['GET'])
+    def list_endpoints():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
 
-                        # Create a list of dictionaries containing user information
-                        user_list = []
-                        for user in filtered_users:
-                            user_info = {'username': user.username}
-                            user_list.append(user_info)
+            if not username or user_role != UserRole.ADMIN:
+                return redirect(url_for('login'))
 
-                        return render_template('usersmanagment.html', users=users, Version=app.Version, City=City)
+        elif oauth_disabled:
+            if 'username' not in session or User.query.filter_by(
+                    username=session.get('username')).first().role != UserRole.ADMIN:
+                return jsonify({'message': 'No authorization'}), 401
 
-                    # If the username is not "FleAdmin", show an error message
-                    error_message = "Fehler - Es scheint so, als hättest du für diesen Bereich keine Berechtigung."
-                    logging.error(f"The User {username} has no authorization.")
-                    return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
+        routes = [{'url': rule.rule, 'endpoint': rule.endpoint} for rule in app.url_map.iter_rules() if
+                  'static' not in rule.endpoint]
 
-                @app.route('/')
-                @cache.cached(timeout=60)
-                def index():
-                    if 'username' not in session:
-                        return redirect(url_for(f'login'))
-                    active_constructions = Construction.query.all()
-                    username = session.get('username')
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
-                    return render_template('index.html', constructions=active_constructions, Version=app.Version, username=username, City=City, user_role=user_role)
+        endpoints = {route['endpoint']: request.url_root + route['url'] for route in routes}
 
+        return jsonify(endpoints=endpoints)
 
-                @app.route('/get_constructions', methods=['GET'])
-                def get_constructions():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    constructions = Construction.query.all()
-                    construction_list = []
-                    for construction in constructions:
-                        construction_info = {
-                            'title': construction.title,
-                            'address': construction.address,
-                            'latitude': construction.latitude,
-                            'longitude': construction.longitude
-                        }
-                        construction_list.append(construction_info)
-                    return jsonify(construction_list)
+    @app.route('/system')
+    @cache.cached(timeout=60)
+    def systemweb():
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
 
-                @app.route('/new_traffic_entry')
-                @cache.cached(timeout=60)
-                def new_traffic_entry():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    return render_template('new_traffic_entry.html', Version=app.Version)
+            if username is None:
+                return redirect(url_for('login'))
+            if user_role == UserRole.ADMIN:
+                memory = psutil.virtual_memory()
+                cpu_percent = psutil.cpu_percent()
+                system = platform.system()
+                versionpython = sys.version
+                disk_usage = psutil.disk_usage('.')
+                space_var = disk_usage.free / (1024 ** 3)
+                total_space = disk_usage.total / (1024 ** 3)
+                space = "{:.2f} GB".format(space_var)
+                totalspace = "{:.2f} GB".format(total_space)
 
+                return render_template('system.html', memory=memory, cpu_percent=cpu_percent, system=system,
+                                       space=space, totalspace=totalspace,
+                                       Version=app.Version, City=City)
 
-                @app.route('/entry_revoke')
-                @cache.cached(timeout=60)
-                def entry_revoke():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    active_constructions = Construction.query.all()
-                    return render_template('entry_revoke.html',constructions=active_constructions, Version=app.Version)
+            error_message = NoAuth
+            app.logger.error(f"The User {username} has no authorization.")
+            return render_template('error.html', error_message=error_message)
+        elif oauth_disabled:
 
+            if 'username' not in session:
+                return redirect(url_for('login'))
+            username = session.get('username')
+            if username:
+                user = User.query.filter_by(username=username).first()
+                user_role = user.role
 
-                @app.route('/rest/v1/route/alert', methods=['GET'])
-                def alert_route():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    destination_coords = {
-                        'data.latitude': 50.822942745215016,
-                        'data.longitude': 6.13288970078409
-                    }
+            if user_role == UserRole.ADMIN:
 
-                    return jsonify(destination_coords)
+               memory = psutil.virtual_memory()
+               cpu_percent = psutil.cpu_percent()
+               system = platform.system()
+               versionpython = sys.version
+               disk_usage = psutil.disk_usage('.')
+               space_var = disk_usage.free / (1024 ** 3)
+               total_space = disk_usage.total / (1024 ** 3)
+               space = "{:.2f} GB".format(space_var)
+               totalspace = "{:.2f} GB".format(total_space)
 
+               return render_template('system.html', memory=memory, cpu_percent=cpu_percent, system=system,
+                                       space=space, totalspace=totalspace, versionpython=versionpython, Version=app.Version, City=City)
 
-                @app.route('/rest/v1/external/maps', methods=['GET'])
-                def interface_external():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
+            error_message = NoAuth
+            app.logger.error(f"The User {username} has no authorization.")
+            return render_template('error.html', error_message=error_message)
 
-                    # Hier holen Sie sich die Construction-Einträge aus der Datenbank:
-                    constructions = Construction.query.all()
-
-                    # Jetzt erstellen Sie eine Liste von JSON-Einträgen:
-                    construction_list = []
-                    for construction in constructions:
-                        construction_info = {
-                            'title': construction.title,
-                            'address': construction.address,
-                            'latitude': construction.latitude,
-                            'longitude': construction.longitude
-                        }
-                        construction_list.append(construction_info)
-
-                    # Geben Sie die Liste als JSON zurück:
-                    return jsonify(construction_list)
-
-
-                @app.route('/rest/v1/alertservice/generate_key', methods=['POST'])
-                def generate_access_key():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
-
-                    if user_role == UserRole.ADMIN or user_role == UserRole.EDITOR:
-                        logging.info("A new ALERTKEY is generated")
-                        # Generate a new Access Key (for example, 20 characters long alphanumeric)
-                        new_key = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
-
-
-                        # Write the new environment variables to the .env file
-                        dotenv.set_key(".env", "ALERTKEY", f"{new_key}")
-                        logging.info("The new ALERTKEY has been created")
-
-                        return redirect(url_for('successful_change'))
-
-                    error_message = "Fehler - Es scheint so, als hättest du für diesen Vorgang keine Berechtigung."
-                    logging.error(f"The User {username} has no authorization.")
-                    return render_template('error.html', error_message=error_message)
-
-                @app.route('/rest/v1/alertservice/successfullkey', methods=['GET'])
-                def successful_change():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
-
-                    if user_role == UserRole.ADMIN:
-                     return render_template('alertkeychange.html', Version=app.Version, City=City)
-
-                    error_message = "Fehler - Es scheint so, als hättest du für diesen Vorgang keine Berechtigung."
-                    logging.error(f"The User {username} has no authorization.")
-                    return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
-
-                @app.route('/rest/v1/alertservice')
-                @cache.cached(timeout=60)
-                def alertservice():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
-
-                    if user_role == UserRole.ADMIN:
-                        AlamosLink = f"[FQDN]:[PORT]/rest/v1/alertservice/alamos/{ALERTKEY}"
-                        return render_template('alertservice.html', Version=app.Version, City=City, ALERTKEY=ALERTKEY,
-                                               AlamosLink=AlamosLink)
-
-                    error_message = "Fehler - Es scheint so, als hättest du für diesen Vorgang keine Berechtigung."
-                    logging.error(f"The User {username} wir role {user_role} has no authorization.")
-                    return render_template('error.html', error_message=error_message, Version=app.Version, City=City)
-
-                DATA_DIRECTORY = os.path.join("..", "..", "data")
-                def save_to_json_file(unit, keyword):
-                    data = {
-                        "unit": unit,
-                        "keyword": keyword
-                    }
-                    filename = os.path.join(DATA_DIRECTORY, "alert.json")
-                    with open(filename, "w") as json_file:
-                        json.dump(data, json_file)
-                    return filename
-
-
-                @app.route(f'/rest/v1/alertservice/alamos/{ALERTKEY}', methods=['POST', 'GET'])
-                def alamos_webhook():
-                    if request.method == 'POST':
-                        # Verarbeite POST-Anfragen
-                        logging.info("Receive new ALERT - POST")
-                        data = request.get_json()
-                        unit = data.get('unit')
-                        keyword = data.get('keyword')
-                        if unit and keyword:
-                            save_to_json_file(unit, keyword)
-                            return jsonify({'message': 'POST-Anfrage erfolgreich verarbeitet'})
-
-                    elif request.method == 'GET':
-                        # Verarbeite GET-Anfragen
-                        logging.info("Receive new ALERT - GET")
-                        unit = request.args.get('unit')
-                        keyword = request.args.get('keyword')
-                        if unit and keyword:
-                            save_to_json_file(unit, keyword)
-                            return jsonify({'message': 'GET-Anfrage erfolgreich verarbeitet'})
-
-                    return jsonify({'message': 'NOT_OK'}), 405
-
-                @app.route('/delete_construction/<int:construction_id>', methods=['GET', 'POST'])
-                def delete_construction(construction_id):
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
-
-                    if user_role == UserRole.ADMIN or user_role == UserRole.EDITOR:
-                        construction = Construction.query.get_or_404(construction_id)
-                        db.session.delete(construction)
-                        db.session.commit()
-                        logging.info(f"The following entry was deleted {construction_id}")
-                        return redirect(url_for('entry_revoke'))
-                    # If the username is not ..., show an error message
-                    error_message = "Fehler - Es scheint so, als hättest du für diesen Vorgang keine Berechtigung."
-                    logging.error(f"The User {username} has no authorization.")
-                    return render_template('error.html', error_message=error_message)
-
-                @app.route('/add_construction', methods=['POST'])
-                def add_construction():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
-
-                    if user_role == UserRole.ADMIN or user_role == UserRole.EDITOR:
-                        title = request.form['title']
-                        description = request.form['description']
-                        address = request.form['address']
-                        start_date = request.form['start_date']
-                        end_date = request.form['end_date']
-                        latitude = request.form['latitude']
-                        longitude = request.form['longitude']
-                        new_construction = Construction(title=title, description=description, address=address,
-                                                        start_date=start_date, end_date=end_date, latitude=latitude, longitude=longitude)
-                        db.session.add(new_construction)
-                        db.session.commit()
-                        logging.info(f"New traffic situation entered {new_construction}")
-
-                        active_constructions = Construction.query.all()
-                        return redirect(url_for('index'))
-                    # If the username is not ..., show an error message
-                    error_message = "Fehler - Es scheint so, als hättest du für diesen Vorgang keine Berechtigung."
-                    logging.error(f"The User {username} has no authorization.")
-                    return render_template('error.html', error_message=error_message)
-
-
-                @app.route('/system')
-                @cache.cached(timeout=60)
-                def systemweb():
-                    if 'username' not in session:
-                        return redirect(url_for('login'))
-                    username = session.get('username')
-                    if username:
-                        user = User.query.filter_by(username=username).first()
-                        user_role = user.role
-
-                    if user_role == UserRole.ADMIN:
-
-                       memory = psutil.virtual_memory()
-                       cpu_percent = psutil.cpu_percent()
-                       system = platform.system()
-                       versionpython = sys.version
-                       disk_usage = psutil.disk_usage('.')
-                       space_var = disk_usage.free / (1024 ** 3)
-                       total_space = disk_usage.total / (1024 ** 3)  # Convert to gigabytes
-                       space = "{:.2f} GB".format(space_var)
-                       totalspace = "{:.2f} GB".format(total_space)
-
-                       return render_template('system.html', memory=memory, cpu_percent=cpu_percent, system=system,
-                                               space=space, totalspace=totalspace, versionpython=versionpython, Version=app.Version, City=City)
-
-                    error_message = "Fehler - Es scheint so, als hättest du für diesen Vorgang keine Berechtigung."
-                    logging.error(f"The User {username} has no authorization.")
-                    return render_template('error.html', error_message=error_message)
-                    
-                if __name__ == '__main__':
-                    app.run(ssl_context=ssl_settings, host=host, port=port)
-
-
-
-    except Exception as errorhandler:
-        logging.error(errorhandler)
-        #logger.error(errorhandler)
+    if __name__ == '__main__':
+        app.run(ssl_context=ssl_settings, host=host, port=port)

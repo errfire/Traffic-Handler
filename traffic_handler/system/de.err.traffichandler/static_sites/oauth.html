@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traffic Handler Login</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/style_bg.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+  <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/login.js') }}"></script>
+
+</head>
+<body oncontextmenu="return false">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4 offset-md-4">
+        <div id="loading-overlay" class="loading-overlay">
+          <div class="loader"></div>
+        </div>
+
+        <form class="login-form" action="/rest/v1/auth/oauth" method="POST">
+          <h1 class="text-center mb-4 login-title">Traffic Handler <p>{{ City }}</p></h1>
+          <button type="button" id="oauth-button" class="btn btn-primary btn-block">Login with {{ authservice }}</button>
+          <p>{{ error_message }}</p>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.0/js/bootstrap.bundle.min.js"></script>
+
+</body>
+<footer>
+
+  <div id="footer" class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.2); position: fixed; bottom: 0; width: 100%; color: white;">
+      ERR-Fire - Traffic Handler Build Version: {{ Version }} - Stadt: {{ City }}
+  </div>
+</footer>
+</html>

@@ -1,5 +1,7 @@
 venv/
 traffichandler/
+traffic_handler/system/de.errtraffichandler/.env
+traffic_handler/system/de.errtraffichandler/instance/main.db
 *.pyc
 certification/
 bin/

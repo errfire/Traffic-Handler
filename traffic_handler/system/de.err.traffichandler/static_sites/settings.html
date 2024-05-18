@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>ERR-Fire Traffic Handler - Einstellungen</title>
+
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.bundle.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.8/axios.min.js"></script>
+</head>
+
+<body oncontextmenu="return false">
+    <div id="menu">
+        {% include 'menu.html' %}
+    </div>
+
+    <div class="container mt-5">
+        <h2>Einstellungen</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+
+        <ul class="nav nav-tabs">
+            <li class="nav-item">
+                <a class="nav-link active" id="general-tab" data-bs-toggle="tab" href="#general">Allgemein</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="smtp-tab" data-bs-toggle="tab" href="#smtp-settings">E-Mail Server</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="api-key-tab" data-bs-toggle="tab" href="#api-key-settings">API-Schlüssel</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="layout-tab" data-bs-toggle="tab" href="#layout">Layout</a>
+            </li>
+            <!-- Füge hier weitere Tabs für zusätzliche Einstellungen hinzu -->
+        </ul>
+
+        <div class="tab-content mt-2">
+        <div class="tab-pane fade" id="smtp-settings">
+
+        <form action="/save_smtp_settings" method="post">
+
+
+            <div class="mb-3">
+                <label for="smtp-server" class="form-label">SMTP Server:</label>
+                <input type="text" id="smtp-server" name="smtp-server" class="form-control" value="{{smtp_server}}">
+            </div>
+
+            <div class="mb-3">
+                <label for="smtp-port" class="form-label">SMTP Port:</label>
+                <input type="text" id="smtp-port" name="smtp-port" class="form-control" value="{{smtp_port}}">
+            </div>
+
+            <div class="mb-3">
+                <label for="smtp-username" class="form-label">Benutzername:</label>
+                <input type="text" id="smtp-username" name="smtp-username" class="form-control" value="{{smtp_username}}">
+            </div>
+
+            <div class="mb-3">
+                <label for="smtp-password" class="form-label">Passwort:</label>
+                <input type="password" id="smtp-password" name="smtp-password" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label for="smtp_secure" class="form-label">SMTP Verschlüsselung:</label>
+                <select id="smtp_secure" class="form-select" name="smtp_secure">
+                    <option value="True">True</option>
+                    <option value="False">False</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-success">Einstellungen speichern</button>
+        </form>
+        </div>
+        <div class="tab-pane fade" id="api-key-settings">
+            <div class="alert alert-info text-center" role="alert">
+            <p>Es handelt sich hier um einen Ausblick auf die Funktionalitäten, die demnächst eingebunden werden.</p>
+            </div>
+            <div class="mb-3">
+            <label for="apykey" class="form-label">Dein API-Schlüssel :</label>
+            <input type="text" id="apykey" name="apykey" class="form-control">
+        </div>
+
+            <button class="btn btn-success disabled">Neuer API-Schlüssel</button>
+        </div>
+        <div class="tab-pane fade show active" id="general">
+                <div class="mb-3">
+                    <p>Weitere Funktionalitäten kommen im Laufe hinzu.</p>
+            </div>
+            </div>
+
+        </div>
+        <div class="tab-pane fade" id="layout">
+            <h1>Logo hochladen</h1>
+            <p>Bitte ausschließlich .png Dateien hochladen.</p>
+
+
+            <form action="/upload_image" method="post" enctype="multipart/form-data">
+                <input type="file" name="image" accept="image/png" required>
+                <button type="submit" class="btn btn-success">Bild hochladen</button>
+            </form>
+
+            <hr>
+
+            <h1>Aktuelles Logo</h1>
+            <p>Hier sehen Sie das aktuell hochgeladene Logo.</p>
+
+            <div>
+                {% if image %}
+                    <img src="data:image/png;base64,{{ image }}" alt="Aktuelles Bild">
+                {% else %}
+                    <p>Kein Bild vorhanden</p>
+                {% endif %}
+    </div>
+
+        </div>
+    </div>
+
+</body>
+
+<footer>
+        {% include 'footer.html' %}
+</footer>
+
+</html>

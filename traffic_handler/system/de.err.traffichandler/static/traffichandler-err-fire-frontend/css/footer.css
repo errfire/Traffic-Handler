@@ -1,0 +1,6 @@
+#popup-text {
+    display: none;
+}
+#footer {
+    z-index: 1000; /* Hier kannst du die gewünschte Z-Index-Zahl einsetzen */
+}

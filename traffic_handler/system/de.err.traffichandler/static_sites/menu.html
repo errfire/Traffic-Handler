@@ -1,0 +1,58 @@
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/debug.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/debug.css') }}" />
+
+<nav class="navbar navbar-expand-lg navbar-dark">
+  <div class="container-fluid">
+    <!-- Füge ein Logo hinzu -->
+    <img src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/img/ERR-Logo.png') }}" alt="ERR-Fire Logo" height="40" width="70">
+    <a class="navbar-brand" href="/">Traffic Handler</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbar">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a class="nav-link" href="/">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/new_traffic_entry">Neue Verkehrslage</a>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="/administration" id="configDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Administration</a>
+          <ul class="dropdown-menu" aria-labelledby="configDropdown">
+            <li><a class="dropdown-item" href="/settings">Allgemeine Einstellungen</a></li>
+            <li><a class="dropdown-item" href="/emailupload">E-Mail Adressen</a></li>
+            <li><a class="dropdown-item" href="/user-config">Benutzer</a></li>
+            <li><a class="dropdown-item" href="/entry_revoke">Löschen Datensätze</a></li>
+            <li><a class="dropdown-item" href="/alertservice">Alarmsystem</a></li>
+            <li><a class="dropdown-item" href="/ereignisprotokoll">Ereignisse</a></li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/system">System</a>
+        </li>
+      </ul>
+      <ul class="navbar-nav mb-2 mb-lg-0">
+
+        <li class="nav-item">
+          <div id="debug"></div>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="location.reload();"><i class="bi bi-arrow-clockwise"></i></a>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-gear"></i></a>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
+            <li><a class="dropdown-item" href="/profile">Profil</a></li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <form action="/logout" method="post">
+            <button class="btn btn-danger" id="logoutButton" type="submit">Abmelden</button>
+          </form>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
