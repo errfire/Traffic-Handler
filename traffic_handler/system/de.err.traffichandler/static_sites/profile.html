@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>ERR-Fire Traffic Handler - Profil</title>
+
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.bundle.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.8/axios.min.js"></script>
+</head>
+
+<body oncontextmenu="return false">
+    <div id="menu">
+        {% include 'menu.html' %}
+    </div>
+     <div class="container">
+        <h1 class="mt-5">Profil</h1>
+         {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+         <p>Hier haben Sie die Möglichkeit ihr Passwort zu ändern.</p>
+        <form action="/profile" method="post" class="mt-3">
+            <div class="mb-3">
+                <label for="username" class="form-label">Benutzername: (Nicht veränderbar.)</label>
+                <input type="text" id="username" name="username" value="{{ user.username }}" class="form-control" readonly>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Neues Passwort:</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-success">Profil aktualisieren</button>
+        </form>
+    </div>
+
+
+    <footer>
+        {% include 'footer.html' %}
+    </footer>
+</body>
+
+</html>

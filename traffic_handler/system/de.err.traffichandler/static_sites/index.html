@@ -1,48 +1,55 @@
 <!DOCTYPE html>
 <html data-bs-theme="dark">
 <head>
-     <meta charset="UTF-8" />
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="application-name" content="ERR Fire TrafficHandler">
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>ERR-Fire - Traffic Handler  Version: {{ Version }} - Stadt: {{ City }} -- Benutzer: {{ username }} Rolle: {{ user_role }}</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"/>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.bundle.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.8/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js" crossorigin="anonymous"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
 
-     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/styles.css') }}" />
 
-    <script src="{{ url_for('static', filename='traffic.js') }}"></script>
-    <script src="{{ url_for('static', filename='updater.js') }}"></script>
-    <script src="{{ url_for('static', filename='health.js') }}"></script>
+    <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/traffic.js') }}"></script>
+    <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/updater.js') }}"></script>
+    <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/health.js') }}"></script>
+    <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/pdf_generator.js') }}"></script>
 </head>
-<body  oncontextmenu="return false">
+<body>
   <div id="menu">
      {% include 'menu.html' %}
   </div>
 
 
-    <div class="container mt-5">
-        <h1 class="mb-4">ERR-Fire Traffic Handler</h1>
+    <div class="container-fluid">
         <div id="alertContainer"></div>
+        <br>
 
         <div class="container-fluid">
         <div class="row">
             <style>
-                .map-container {
-                    height: 500px; /* Ändern Sie diese Höhe nach Bedarf */
-                }
+                 .map-container {
+              height: calc(70vh - 20px);
+          }
             </style>
 
             <div id="map" class="map-container"></div>
@@ -59,25 +66,81 @@
 
 
 <h2 class="mt-4">Aktive Verkehrslage</h2>
-<ul class="list-group">
-    {% for construction in constructions %}
-        <li class="list-group-item">
-            <strong>{{ construction.type }}: {{ construction.title }}</strong> - {{ construction.address }} ({{ construction.start_date }} - {{ construction.end_date }})
-            <p>{{ construction.description }} {{ construction.latitude }} {{ construction.longitude }}</p>
-        </li>
-    {% endfor %}
-</ul>
+
+<div class="table-responsive">
+    <table class="table table-bordered table-hover">
+        <thead class="thead-dark">
+            <tr>
+                <th scope="col">Typ</th>
+                <th scope="col">Name</th>
+                <th scope="col">Straße</th>
+                <th scope="col">PLZ</th>
+                <th scope="col">Ort</th>
+                <th scope="col">Zeitraum</th>
+                <th scope="col">Beschreibung</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for construction in constructions %}
+                <tr class="construction-row" data-construction-id="{{ construction.id }}">
+                    <td>{{ construction.type }}</td>
+                    <td>{{ construction.title }}</td>
+                    <td>{{ construction.strasse }}</td>
+                    <td>{{ construction.plz }}</td>
+                    <td>{{ construction.ort }}</td>
+                    <td>{{ construction.start_date }} - {{ construction.end_date }}</td>
+                    <td>{{ construction.description }}</td>
+                </tr>
+
+            <div class="modal fade" id="constructionModal{{ construction.id }}" tabindex="-1" role="dialog" aria-labelledby="constructionModalLabel{{ construction.id }}" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="constructionModalLabel{{ construction.id }}">🚧 {{ construction.title }}</h5>
+                            <button type="button" class="btn btn-danger" data-dismiss="modal" aria-label="Close" style="position: absolute; top: 1; right: 0; >
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>Typ:</strong> {{ construction.type }}</p>
+                            <p><strong>Straße:</strong> {{ construction.strasse }}</p>
+                            <p><strong>Ort:</strong> {{ construction.ort }}</p>
+                            <p><strong>PLZ:</strong> {{ construction.plz }}</p>
+                            <p><strong>Start:</strong> {{ construction.start_date }}</p>
+                            <p><strong>Ende:</strong> {{ construction.end_date }}</p>
+                            <p><strong>Breitengrad:</strong> {{ construction.latitude }}</p>
+                            <p><strong>Längengrad:</strong> {{ construction.longitude }}</p>
+                            <p><strong>Beschreibung:</strong> {{ construction.description }}</p>
+                            <h3>🚒 Informationen für die Fahrzeuge</h3>
+                            <br>
+                            <img src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/img/firetruck.png') }}" alt="Feuerwehrauto" class="img-fluid">
+                            <p><strong>Länge in cm:</strong> {{ construction.length }}</p>
+                            <p><strong>Breite in cm:</strong> {{ construction.width }}</p>
+                            <p><strong>Höhe in cm:</strong> {{ construction.height }}</p>
+                            <p><strong>Gewicht in kg:</strong> {{ construction.weight }}</p>
+
+
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" onclick="generatePDF({{ construction.id }})">PDF generieren</button>
+                            <button type="button" class="btn btn-danger" data-dismiss="modal">Schließen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
 
     </div>
-</body>
-<footer>
-    {% if username %}
-  <div id="footer" class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.2); position: fixed; bottom: 0; width: 100%;">
-      <p id="popup-text">Kein Status verfügbar.</p>
-    ERR-Fire - Traffic Handler Build Version: {{ Version }} - Stadt: {{ City }} -- Benutzer: {{ username }} Rolle: {{ user_role }}
-      <img id="cloud-icon" src="{{ url_for('static', filename='greycloud.png') }}" alt="Keine Verbindung" style="width: 30px; height: 30px; margin-left: 10px;">
-  </div>
+<div class="position-fixed end-0 bottom-0">
+    <a href="#" id="popup-text" style="display: none;">Kein Status verfügbar.</a>
+    <img id="cloud-icon" src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/img/greycloud.png') }}" alt="Keine Verbindung" style="width: 30px; height: 30px;" data-tooltip="Kein Status verfügbar.">
 
-    {% endif %}
-</footer>
+</div>
+
+</body>
+
 </html>

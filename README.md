@@ -7,4 +7,4 @@ Es handelt sich hier um den Quellcode des Traffic-Handler.
 
 Dokumentation zum System:
 
-[Dokumentation](https://doc.err-fire.de/docs)
+[Dokumentation](https://wiki.err-fire.de)
