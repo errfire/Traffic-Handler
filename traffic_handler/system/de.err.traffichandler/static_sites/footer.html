@@ -1,8 +1,8 @@
 <script src="{{ url_for('static', filename='health.js') }}"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/footer.css') }}" />
-<script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/health.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}" />
+<script src="{{ url_for('static', filename='health.js') }}"></script>
 <div id="footer" class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.2); position: fixed; bottom: 0; width: 100%;">
     <p id="popup-text">Kein Status verfügbar.</p>
     ERR-Fire - Traffic Handler Build Version: {{ Version }} - Stadt: {{ City }}
-    <img id="cloud-icon" src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/img/greycloud.png') }}" alt="Keine Verbindung" style="width: 30px; height: 30px; margin-left: 10px;">
+    <img id="cloud-icon" src="{{ url_for('static', filename='greycloud.png') }}" alt="Keine Verbindung" style="width: 30px; height: 30px; margin-left: 10px;">
 </div>

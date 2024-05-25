@@ -42,28 +42,28 @@ function showPosition(position) {
 
                 if (constructionType === 'Baustelle') {
                     customIcon = L.icon({
-                        iconUrl: 'static/traffichandler-err-fire-frontend/img/baustelle.jpg',
+                        iconUrl: 'static/baustelle.jpg',
                         iconSize: [32, 32],
                         iconAnchor: [16, 32],
                         popupAnchor: [0, -32]
                     });
                 } else if (constructionType === 'Gefahrenstelle') {
                     customIcon = L.icon({
-                        iconUrl: 'static/traffichandler-err-fire-frontend/img/warning.png',
+                        iconUrl: 'static/warning.png',
                         iconSize: [32, 32],
                         iconAnchor: [16, 32],
                         popupAnchor: [0, -32]
                     });
                 } else if (constructionType === 'Einbahnstrasse') {
                     customIcon = L.icon({
-                        iconUrl: 'static/traffichandler-err-fire-frontend/img/einbahnstrasse.jpg',
+                        iconUrl: 'static/einbahnstrasse.jpg',
                         iconSize: [60, 32],
                         iconAnchor: [16, 32],
                         popupAnchor: [0, -32]
                     });
                 } else if (constructionType === 'Durchfahrtsverbot') {
                     customIcon = L.icon({
-                        iconUrl: 'static/traffichandler-err-fire-frontend/img/durchfahrtsverbot.jpg',
+                        iconUrl: 'static/durchfahrtsverbot.jpg',
                         iconSize: [32, 32],
                         iconAnchor: [16, 32],
                         popupAnchor: [0, -32]

@@ -16,15 +16,15 @@ function checkServerStatus() {
     axios.get(address)
         .then(function (response) {
             if (response.status === 200) {
-                document.getElementById('cloud-icon').src = "static/traffichandler-err-fire-frontend/img/greencloud.png";
+                document.getElementById('cloud-icon').src = "static/greencloud.png";
                 document.getElementById('popup-text').textContent = "Verbindung zum Updateserver.";
             } else {
-                document.getElementById('cloud-icon').src = "static/traffichandler-err-fire-frontend/img/greycloud.png";
+                document.getElementById('cloud-icon').src = "static/greycloud.png";
                 document.getElementById('popup-text').textContent = "Keine Verbindung zum Updateserver.";
             }
         })
         .catch(function (error) {
-            document.getElementById('cloud-icon').src = "static/traffichandler-err-fire-frontend/img/greycloud.png";
+            document.getElementById('cloud-icon').src = "static/greycloud.png";
             document.getElementById('popup-text').textContent = "Keine Verbindung zum Updateserver.";
         });
 }
