@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>ERR-Fire Traffic Handler - System</title>
+
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"/>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='/dist/js/bootstrap.bundle.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='/dist/css/bootstrap.min.css') }}"/>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.8/axios.min.js"></script>
+
+    <script src="{{ url_for('static', filename='/traffichandler-err-fire-frontend/js/scripts.js') }}"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='/traffichandler-err-fire-frontend/css/styles.css') }}" />
+  </head>
+  <body oncontextmenu="return false">
+  <div id="menu">
+
+     {% include 'menu.html' %}
+  </div>
+
+   <div class="container my-5">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="card-title mb-0">Upload Empfängeradresse</h3>
+                </div>
+                <div class="card-body">
+                    <div class="container">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }}">
+                                        {{ message }}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        <p>Bitte laden Sie hier die CSV-Datei hoch, die die E-Mail-Adressen der zu informierenden Personen enthält.
+                            Die Vorlage finden Sie in der Dokumentation unter <a href="https://wiki.err-fire.de" target="_blank">wiki.err-fire.de</a>.</p>
+
+                        <form action="/rest/v1/emailfile" method="post" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="file" class="form-label">Datei auswählen:</label>
+                                <input type="file" class="form-control" id="file" name="file" accept=".csv" required />
+                            </div>
+                            <button type="submit" class="btn btn-success">Hochladen</button>
+                        </form>
+
+                        <hr>
+
+                        {% if files %}
+                            <h4>Die zuletzt hochgeladene Datei:</h4>
+                            <ul>
+                                {% set latestFile = files | first %}
+                                <li>{{ latestFile['name'] }} - {{ latestFile['timestamp'] }}</li>
+                            </ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+
+<footer>
+ <div id="footer">
+     {% include 'footer.html' %}
+  </div>
+</footer>
+</html>
