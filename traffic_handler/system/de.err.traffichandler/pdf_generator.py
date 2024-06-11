@@ -68,7 +68,7 @@ def generate_pdf_file(construction, filename):
     header_position = A4[1] - 50
     footer_position = 30
 
-    logo_path = 'static/traffichandler-err-fire-frontend/img/ERR-Logo_oT.png'
+    logo_path = 'static/ERR-Logo_oT.png'
     pdf_canvas.drawImage(logo_path, A4[0] - 60, header_position - 20, width=50, height=50)
 
     pdf_canvas.setFont('Helvetica-Bold', 16)

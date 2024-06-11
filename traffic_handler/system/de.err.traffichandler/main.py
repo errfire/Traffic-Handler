@@ -62,7 +62,23 @@ with app.app_context():
 
     @app.route('/generate_pdf/<int:construction_id>')
     def generate_pdf_route(construction_id):
-        return generate_pdf(construction_id, Construction, app)
+        if oauth_enabled:
+            username, user_role, active_constructions = get_user_and_constructions()
+
+            if username is None or user_role != UserRole.ADMIN:
+                error_message = NoAuth
+                return render_template('error.html', error_message=error_message, Version=app.Version,
+                                       City=City)
+        elif oauth_disabled:
+            if 'username' not in session:
+                return redirect(url_for(f'login'))
+
+            active_constructions = Construction.query.all()
+            username = session.get('username')
+            if username:
+                user = User.query.filter_by(username=username).first()
+
+                return generate_pdf(construction_id, Construction, app)
 
 
     def allowed_file(filename):

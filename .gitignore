@@ -9,4 +9,3 @@ bin/
 Dockerfile
 requirements.txt
 .gitignore
-.idea
